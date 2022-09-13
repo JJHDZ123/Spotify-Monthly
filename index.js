@@ -10,7 +10,7 @@ const app = express();
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
-app.use(express.static('./views'));
+app.use(express.static('views'));
 
 app.use('/', allRoutes);
 
