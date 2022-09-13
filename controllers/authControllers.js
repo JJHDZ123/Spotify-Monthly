@@ -2,7 +2,6 @@
 const { got } = require('got-cjs');
 const qs = require('qs');
 const { makeState } = require('../utils/makeState.js');
-const { formUrlEncoded } = require('../utils/UrlEncoded.js');
 const { CLIENT_ID, CLIENT_SECRET, redirect_uri } = require('../utils/Constants.js');
 
 const state = makeState(16);
