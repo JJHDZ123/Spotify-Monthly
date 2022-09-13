@@ -1,10 +1,13 @@
 //const User = require('../models/userModel.js');
-const request = require('request');
-require('dotenv').config();
+const { got } = require('got-cjs');
+const qs = require('qs');
+const { makeState } = require('../utils/makeState.js');
+const { formUrlEncoded } = require('../utils/UrlEncoded.js');
+const { CLIENT_ID, CLIENT_SECRET, redirect_uri } = require('../utils/Constants.js');
 
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const redirect_uri = 'http://localhost:5000/auth/callback';
+const state = makeState(16);
+var access_token = '';
+var refresh_token = '';
 
 module.exports.login = (req, res) => {
 	const scope = 'user-read-private user-read-email';
@@ -15,37 +18,58 @@ module.exports.login = (req, res) => {
 				client_id     : CLIENT_ID,
 				response_type : 'code',
 				redirect_uri  : redirect_uri,
+				show_dialog   : true,
+				state         : state,
 				scope         : scope
 			}).toString()
 	);
 };
 
-module.exports.callback = (req, res) => {
+module.exports.callback = async (req, res) => {
 	var code = req.query.code || null;
+	var reqState = req.query.state || null;
 
-	var authOptions = {
-		url     : 'https://accounts.spotify.com/api/token',
-		form    : {
+	if (reqState === null || reqState !== state) {
+		res.redirect(
+			'/#' +
+				qs.stringify({
+					error : 'state_mismatch'
+				})
+		);
+	} else {
+		const bodyOption = {
+			json         : true,
 			code         : code,
 			redirect_uri : redirect_uri,
 			grant_type   : 'authorization_code'
-		},
-		headers : {
-			Authorization : 'Basic ' + Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET, 'utf-8').toString('base64')
-		},
-		json    : true
-	};
+		};
+		var authOptions = {
+			url     : 'https://accounts.spotify.com/api/token',
+			headers : {
+				Authorization : 'Basic ' + Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET, 'utf-8').toString('base64')
+			},
+			form    : bodyOption
+		};
+	}
 
-	request.post(authOptions, function(error, response, body) {
-		if (!error && response.statusCode === 200) {
-			var access_token = body.access_token;
-			res.send({
-				access_token : access_token
-			});
-		}
-	});
+	await got
+		.post(authOptions)
+		.then((response) => {
+			const res = JSON.parse(response.body);
+
+			access_token = res.access_token;
+			refresh_token = res.refresh_token;
+			console.log(access_token);
+		})
+		.catch((err) => {
+			console.log(err);
+		});
+
+	if (access_token) {
+		res.redirect('/home');
+	}
 };
 
-module.exports.handleRefreshToken = (req, res) => {};
+module.exports.makeMonthlyPlaylist = (req, res) => {};
 
 module.exports.logout = (req, res) => {};
