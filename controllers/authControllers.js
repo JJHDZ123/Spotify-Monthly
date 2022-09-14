@@ -65,7 +65,7 @@ module.exports.callback = async (req, res) => {
 		});
 
 	if (access_token) {
-		res.redirect('/loading');
+		res.redirect('/auth/genPlaylist');
 	}
 };
 
@@ -73,8 +73,7 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 	const now = new Date();
 	const playListName = date.format(now, 'MMMM, YYYY');
 	const currYear = date.format(now, 'YYYY');
-	const currMonth = '08';
-	//const currMonth = date.format(now, 'MM');
+	const currMonth = date.format(now, 'MM');
 
 	var userId = '';
 	var playlistId = '';
@@ -111,14 +110,16 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 				const res = JSON.parse(response.body);
 				res.items.map((playlist) => {
 					if (playlist.name === playListName) {
-						existPlaylist = true;
 						playlistId = playlist.id;
+						existPlaylist = true;
 						return;
 					}
 
-					return;
+					return null;
 				});
 			});
+
+		console.log(playlistId);
 
 		//GET USER PROFILE ID
 		await got
@@ -184,6 +185,11 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 					});
 			})
 		);
+
+		if (currMonthAlbums.length === 0) {
+			res.redirect('/noPlaylist');
+			throw null;
+		}
 		// MAKE SURE THERE ARE NO DUPLICATES
 		filteredAlbums = filterByProperty(currMonthAlbums, 'name');
 
@@ -261,8 +267,9 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 
 		res.redirect('/home');
 	} catch (error) {
-		console.log('in error');
-		console.log(error);
+		if (error !== null) {
+			console.log(error);
+		}
 	}
 };
 
