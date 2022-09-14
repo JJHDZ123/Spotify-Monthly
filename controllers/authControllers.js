@@ -1,4 +1,5 @@
 const date = require('date-and-time');
+
 const qs = require('qs');
 const { got } = require('got-cjs');
 const { makeState } = require('../utils/makeState.js');
@@ -9,7 +10,7 @@ var access_token = '';
 var refresh_token = '';
 
 module.exports.login = (req, res) => {
-	const scope = 'user-read-private user-read-email user-follow-read';
+	const scope = 'user-read-private user-read-email user-follow-read playlist-read-private playlist-modify-private';
 
 	res.redirect(
 		'https://accounts.spotify.com/authorize?' +
@@ -70,13 +71,67 @@ module.exports.callback = async (req, res) => {
 
 module.exports.makeMonthlyPlaylist = async (req, res) => {
 	const now = new Date();
+	const playListName = date.format(now, 'MMMM, YYYY');
 	const currYear = date.format(now, 'YYYY');
 	const currMonth = '08';
 	//const currMonth = date.format(now, 'MM');
+
+	var userId = '';
+	var playlistId = '';
+	var existPlaylist = false;
 	var userArtists = [];
 	var currMonthAlbums = [];
+	var filteredAlbums = [];
 	var currMonthSongs = [];
+	var existPlaylistTracks = [];
+	var filteredTracks = [];
+
+	function filterByProperty(array, propertyName) {
+		var occurrences = {};
+
+		return array.filter(function(x) {
+			var property = x[propertyName];
+			if (occurrences[property]) {
+				return false;
+			}
+			occurrences[property] = true;
+			return true;
+		});
+	}
+
 	try {
+		//CHECK TO SEE IF PLAYLIST EXISTS
+		await got
+			.get('https://api.spotify.com/v1/me/playlists', {
+				headers : {
+					Authorization : 'Bearer ' + access_token
+				}
+			})
+			.then((response) => {
+				const res = JSON.parse(response.body);
+				res.items.map((playlist) => {
+					if (playlist.name === playListName) {
+						existPlaylist = true;
+						playlistId = playlist.id;
+						return;
+					}
+
+					return;
+				});
+			});
+
+		//GET USER PROFILE ID
+		await got
+			.get('https://api.spotify.com/v1/me', {
+				headers : {
+					Authorization : 'Bearer ' + access_token
+				}
+			})
+			.then((response) => {
+				const res = JSON.parse(response.body);
+				userId = res.id;
+			});
+
 		//GET FOLLOWED ARTIST FOR USER
 		await got
 			.get('https://api.spotify.com/v1/me/following?type=artist', {
@@ -85,9 +140,9 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 				}
 			})
 			.then((response) => {
-				const resArtists = JSON.parse(response.body);
+				const res = JSON.parse(response.body);
 
-				userArtists = resArtists.artists.items.map((artist) => {
+				userArtists = res.artists.items.map((artist) => {
 					return artist.id;
 				});
 			});
@@ -106,26 +161,105 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 						}
 					})
 					.then((response) => {
-						const artistAlbums = JSON.parse(response.body);
-						const currMonthAlbumsFilter = artistAlbums.items.map((album) => {
+						const res = JSON.parse(response.body);
+						const currMonthAlbumsFilter = res.items.map((album) => {
 							const albumRY = album.release_date.substring(0, 4);
 							const albumRM = album.release_date.substring(5, 7);
 
 							if (currYear === albumRY && currMonth === albumRM) {
-								return album.id;
+								return {
+									name : album.name,
+									id   : album.id
+								};
 							}
 
 							return null;
 						});
 
-						const currMonthAlbumId = currMonthAlbumsFilter.filter((id) => id !== null);
+						const currMonthAlbum = currMonthAlbumsFilter.filter((item) => item !== null);
 
-						if (currMonthAlbumId[0] !== undefined) {
-							currMonthAlbums = [ ...currMonthAlbums, ...currMonthAlbumId ];
+						if (currMonthAlbum[0] !== undefined) {
+							currMonthAlbums = [ ...currMonthAlbums, ...currMonthAlbum ];
 						}
 					});
 			})
 		);
+		// MAKE SURE THERE ARE NO DUPLICATES
+		filteredAlbums = filterByProperty(currMonthAlbums, 'name');
+
+		//GET ALL SONG URIS THAT WILL BE PUT IN PLAYLIST
+		await Promise.all(
+			filteredAlbums.map(async (album) => {
+				await got
+					.get(`https://api.spotify.com/v1/albums/${album.id}/tracks`, {
+						headers : {
+							Authorization : 'Bearer ' + access_token
+						}
+					})
+					.then((response) => {
+						const res = JSON.parse(response.body);
+						const albumSongs = res.items.map((song) => {
+							return song.uri;
+						});
+
+						currMonthSongs = [ ...currMonthSongs, ...albumSongs ];
+					});
+			})
+		);
+
+		if (existPlaylist === false) {
+			//CREATE PLAYLIST
+			await got
+				.post(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+					headers : {
+						Authorization : 'Bearer ' + access_token
+					},
+					json    : {
+						name        : playListName,
+						description : `Playlist for the month of ${date.format(
+							now,
+							'MMMM'
+						)}, curtesy of Spotify Monthly`,
+						public      : false
+					}
+				})
+				.then((response) => {
+					const res = JSON.parse(response.body);
+					playlistId = res.id;
+				});
+		} else if (existPlaylist === true) {
+			//GET EXISTING PLAYLIST TRACKS
+			await got
+				.get(`https://api.spotify.com/v1/playlists/${playlistId}`, {
+					headers : {
+						Authorization : 'Bearer ' + access_token
+					}
+				})
+				.then((response) => {
+					const res = JSON.parse(response.body);
+					existPlaylistTracks = res.tracks.items.map((track) => {
+						return track.track.uri;
+					});
+				});
+
+			filteredTracks = currMonthSongs.filter((x) => !existPlaylistTracks.includes(x));
+		}
+
+		if (filteredTracks.length > 0) {
+			currMonthSongs = filteredTracks;
+		}
+
+		//UPDATE NEW PLAYLIST TRACKS
+		await got.post(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+			headers : {
+				Authorization : 'Bearer ' + access_token
+			},
+			json    : {
+				uris : currMonthSongs
+			}
+		});
+
+		res.redirect('/home');
 	} catch (error) {
 		console.log('in error');
 		console.log(error);
