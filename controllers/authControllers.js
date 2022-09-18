@@ -119,8 +119,6 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 				});
 			});
 
-		console.log(playlistId);
-
 		//GET USER PROFILE ID
 		await got
 			.get('https://api.spotify.com/v1/me', {
@@ -249,21 +247,24 @@ module.exports.makeMonthlyPlaylist = async (req, res) => {
 				});
 
 			filteredTracks = currMonthSongs.filter((x) => !existPlaylistTracks.includes(x));
-		}
 
-		if (filteredTracks.length > 0) {
 			currMonthSongs = filteredTracks;
 		}
 
 		//UPDATE NEW PLAYLIST TRACKS
-		await got.post(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-			headers : {
-				Authorization : 'Bearer ' + access_token
-			},
-			json    : {
-				uris : currMonthSongs
-			}
-		});
+		if (currMonthSongs.length > 0) {
+			await got.post(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+				headers : {
+					Authorization : 'Bearer ' + access_token
+				},
+				json    : {
+					uris : currMonthSongs
+				}
+			});
+		} else if (currMonthSongs.length === 0) {
+			res.redirect('/noPlaylist');
+			throw null;
+		}
 
 		res.redirect('/home');
 	} catch (error) {
