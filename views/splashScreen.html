@@ -3,11 +3,32 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" type="text/css" href="home.css">
-    <title>Spotify Web API Tutorial</title>
+    <link rel="stylesheet" type="text/css" href="splashScreen.css">
+    <title>Spotify Monthly</title>
   </head>
   <body>
-    <h1>Please sign in to get this months playlist!</h1>
-    <a href="/auth/login">Login!</a>
+    <div class="splash-wrapper">
+      <h1 class="splash-tittle">Welcome to <span>Spotify Monthly</span>!</h1>
+      <div class="splash-rules">
+        <h2><span>A quick overview</span></h2>
+        <ul>
+          <li>You will have to request access due to the app being in development through Spotify Application Requirements. Please be sure to email us at the contact posted below</li>
+          <li>This app assumes that you have some followed artists on your acount. The app may not provide a playlist for you if you don't have any.</li>
+          <li>If you have any trouble with the app or just want to reach out to give suggestion feel free to reach out!</li>
+        </ul>
+        <div class="contact-card">
+          <h2><span>Contact Info:</span></h2>
+          <h1>Juanherndev@gmail.com</h1>
+        </div>
+      </div>
+      <div class="splash-login_card">
+        <p class="splash-sub">Please sign in to continue</p>
+        <div class="Login-btn">
+          <a href="/auth/login" class="splash-anchor">
+            Login
+          </a>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
